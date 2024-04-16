@@ -1,7 +1,12 @@
 use std::{env, process::ExitCode};
 use board::{Board};
 
+use crate::heuristics::manhattan_distance;
+
+mod heuristics;
+mod solver;
 mod board;
+mod position;
 
 fn main() -> ExitCode {
     if env::args().len() == 1 {
@@ -13,7 +18,9 @@ fn main() -> ExitCode {
 	let path = env::args().nth(1).unwrap();
 	let b = Board::from_path(&path).unwrap();
 
-	dbg!(b);
+	manhattan_distance(&b);
+
+	println!("{}", b);
 
 	
 	ExitCode::from(0)
