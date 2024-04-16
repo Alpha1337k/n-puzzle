@@ -1,7 +1,7 @@
 use std::{env, process::ExitCode};
 use board::{Board};
 
-use crate::heuristics::manhattan_distance;
+use crate::{heuristics::manhattan_distance, solver::Solver};
 
 mod heuristics;
 mod solver;
@@ -22,6 +22,9 @@ fn main() -> ExitCode {
 
 	println!("{}", b);
 
+	let mut solver = Solver::from_base(&b, &manhattan_distance);
+
+	solver.solve();
 	
 	ExitCode::from(0)
 }

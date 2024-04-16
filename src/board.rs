@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, fs};
+use std::{collections::HashSet, fmt, fs, hash::{Hash, Hasher}};
 
 use crate::position::Position;
 
@@ -24,7 +24,7 @@ impl Board {
 
 		let mut visited_places = HashSet::<Position>::new();
 
-		let mut dir: [(i32, i32); 4] = [
+		let mut directions: [(i32, i32); 4] = [
 			(1, 0),
 			(0, 1),
 			(-1, 0),
@@ -36,7 +36,7 @@ impl Board {
 		};
 
 		let mut dir_idx = 0;
-		let mut current_dir = &dir[dir_idx];
+		let mut current_dir = &directions[dir_idx];
 
 		while idx < n * n {
 			visited_places.insert(pos);
@@ -52,7 +52,7 @@ impl Board {
 				y: pos.y.wrapping_add(current_dir.1 as usize)
 			 }) {
 				dir_idx = (dir_idx + 1) % 4;
-				current_dir = &dir[dir_idx];
+				current_dir = &directions[dir_idx];
 			 }
 			idx += 1;
 		}
@@ -118,6 +118,19 @@ impl Board {
 
 		Ok(board)
 	}
+
+	pub fn with_swap(board: &Board, a: usize, b: usize) -> Board {
+		let mut board = Board{
+			data: board.data.clone(),
+			n: board.n,
+			desired_positions: board.desired_positions.clone()
+		};
+
+		board.data.swap(a, b);
+
+
+		return board;
+	}
 }
 
 impl fmt::Display for Board {
@@ -125,7 +138,7 @@ impl fmt::Display for Board {
 		for i in 0..self.data.len() {
 			write!(f, "{} ", self.data[i]).unwrap();
 
-			if (i % self.n == self.n - 1) {
+			if (i % self.n == self.n - 1 && i != self.data.len() - 1) {
 				write!(f, "\n").unwrap();
 			}
 		}
@@ -178,3 +191,17 @@ impl<'a> Iterator for BoardIterator {
 		return Some(Position::from_u64(self.index - 1, self.n));
 	}
 }
+
+impl Hash for Board {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+		(&self.data).hash(state);
+    }
+}
+
+impl PartialEq for Board {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+}
+
+impl Eq for Board {}

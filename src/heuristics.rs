@@ -10,12 +10,10 @@ pub fn manhattan_distance(board: &Board) -> usize {
 
 		let distance = usize::abs_diff(pos.x, desired.x) + 
 			usize::abs_diff(pos.y, desired.y);
-		println!("{} V:{} D:{} = {}", pos, board[&pos], board.desired_positions[board[&pos]], distance);
+		// println!("{} V:{} D:{} = {}", pos, board[&pos], board.desired_positions[board[&pos]], distance);
 
 		total_offset += distance;
 	}
-
-	println!("TOTAL: {}", total_offset);
 
 	return total_offset;
 }

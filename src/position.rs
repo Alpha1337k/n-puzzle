@@ -15,6 +15,10 @@ impl Position {
 			y: pos.div_euclid(n)
 		};
 	}
+
+	pub fn to_usize(&self, n: usize) -> usize {
+		return self.y * n + self.x;
+	}
 }
 
 impl fmt::Display for Position {
