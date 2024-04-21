@@ -1,6 +1,6 @@
-use std::{cell::RefCell, cmp::Ordering, collections::{BinaryHeap, HashMap, HashSet}, hash::{Hash, Hasher}, rc::{Rc, Weak}};
+use std::{borrow::BorrowMut, cell::{Ref, RefCell}, cmp::Ordering, collections::{BinaryHeap, HashMap}, hash::{Hash, Hasher}, ops::Deref, rc::Rc};
 
-use crate::{board::Board, position::Position};
+use crate::{board::Board, position::Position, sorted_set::SortedSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum NodePosition {
@@ -9,13 +9,14 @@ enum NodePosition {
 }
 
 #[derive(Clone, Debug)]
-struct Node {
-	state: NodePosition,
-	board: Board,
-	h: usize,
-	g: usize,
-	f: usize,
-	parent: Option<Rc<Node>>
+pub struct Node {
+	pub state: NodePosition,
+	pub board: Board,
+	pub h: usize,
+	pub g: usize,
+	pub f: usize,
+	pub parent: Option<Rc<Node>>,
+	pub deleted: bool
 }
 
 impl Node {
@@ -24,7 +25,7 @@ impl Node {
 
 		let empty_pos = Position::from_u64(empty_idx, self.board.n);
 
-		let mut directions: [(i32, i32); 4] = [
+		let directions: [(i32, i32); 4] = [
 			(1, 0),
 			(0, 1),
 			(-1, 0),
@@ -44,7 +45,7 @@ impl Node {
 					continue;
 			}
 
-			let mut new_board = Board::with_swap(&self.board, empty_idx, swap_pos.to_usize(self.board.n));
+			let new_board = Board::with_swap(&self.board, empty_idx, swap_pos.to_usize(self.board.n));
 
 			let score = heuristic(&new_board);
 
@@ -55,6 +56,7 @@ impl Node {
 				g: self.g + 1,
 				f: score + self.g + 1,
 				parent: Some(Rc::from(self.clone())),
+				deleted: false
 			})
 		}
 
@@ -98,37 +100,11 @@ impl Eq for Node {}
 pub struct Solver {
 	board: Board,
 	heuristic: &'static dyn Fn(&Board) -> usize,
-	open_set: BinaryHeap<Rc<Node>>,
-	closed_set: Vec<Rc<Node>>,
-	nodes: HashSet<Rc<Node>>
+	open_set: SortedSet,
+	closed_set: HashMap<Board, Rc<RefCell<Node>>>
 }
 
 impl Solver {
-	pub fn from_base(board: &Board, heuristic: &'static dyn Fn(&Board) -> usize) -> Solver {
-		let mut solver = Solver {
-			board: board.clone(),
-			heuristic,
-			nodes: HashSet::new(),
-			closed_set: Vec::new(),
-			open_set: BinaryHeap::new()
-		};
-
-		let start = Rc::new(Node {
-			state: NodePosition::OPEN,
-			board: solver.board.clone(),
-			h: 0,
-			g: 0,
-			f: usize::MAX,
-			parent: None
-		});
-		let extra = Rc::clone(&start);
-
-		solver.open_set.push(start);
-		solver.nodes.insert(extra);
-
-		return solver;
-	}
-
 	fn get_inversion_count(&self) -> i32 {
 		let mut count = 0;
 
@@ -147,61 +123,105 @@ impl Solver {
 	pub fn is_solvable(&self) -> bool {
 		let inversions = self.get_inversion_count();
 
-		dbg!(&inversions);
-
-		if (self.board.n & 1 == 1) {
+		if self.board.n & 1 == 1 {
 			return inversions & 1 == 1;
 		} else {
 			let empty_idx = self.board.data.iter().position(|v| v == &0).unwrap();
 
 			let pos = Position::from_u64(empty_idx, self.board.n);
 
-			if (pos.x & 1 == 0) {
+			if pos.x & 1 == 0 {
 				return inversions & 1 == 0;
 			}
 			return inversions & 1 == 1;
 		}
 	}
 
+	pub fn from_base(board: &Board, heuristic: &'static dyn Fn(&Board) -> usize) -> Solver {
+		let mut solver = Solver {
+			board: board.clone(),
+			heuristic,
+			closed_set: HashMap::new(),
+			open_set: SortedSet::new()
+		};
+
+		solver.open_set.insert(&Rc::new(RefCell::new(Node {
+			state: NodePosition::OPEN,
+			board: solver.board.clone(),
+			h: 0,
+			g: 0,
+			f: usize::MAX,
+			parent: None,
+			deleted: false
+		})));
+
+		return solver;
+	}
+
 	pub fn solve(&mut self) {
 		let mut i = 0;
 
-		if (!self.is_solvable()) {
+		if !self.is_solvable() {
 			println!("n-puzzle: error: unsolvable");
 			return;
 		}
 
-		while self.open_set.len() != 0 && i < 1000000 {
+		while self.open_set.len() != 0 && i < 30605822 {
 
-			let current = &self.open_set.pop().unwrap();
-			
+			let current_ref = &self.open_set.pop();
+			let current = current_ref.borrow();
+ 			
+			// println!("\n----- Step #{}\t Score: {} = {} + {}:\n{}", i, current.f, current.g, current.h, current.board);
+
 			if (self.heuristic)(&current.board) == 0 {
 				println!("FOUND ({})!\n{}", current.f, current.board);
 				break;
 			}
 
-			println!("CUR Score: {} = {} + {}:\n{}\n-----", current.f, current.g, current.h, current.board);
+			if (i % 1_000_000 == 0) {
+				println!("{}, open: {}, closed: {}", i, self.open_set.len(), self.closed_set.len());
+			}
+
+			let mut inserted = 0;
+			let mut needs_insert = false;
 
 			for permutation in current.get_permutations(self.heuristic) {
 				// println!("PERM: {} = {} + {}\n{}", permutation.f, permutation.g, permutation.h, permutation.board);
 
-				if let Some(found_node) = self.nodes.get(&permutation) {
-					if found_node.f > permutation.f && found_node.state == NodePosition::OPEN {
+				// check for duplicates
+				if let Some(found_node) = self.closed_set.remove(&permutation.board) {
+					if permutation.f < found_node.borrow().f {
+						self.open_set.insert(&Rc::clone(&found_node));
 
+						inserted += 1;		
 					}
-					// println!("FOUND COPY HAHAHAH")
+					self.closed_set.insert(permutation.board.clone(), found_node);
+
+				} else if let Some(found_node) = self.open_set.find(&permutation.board) {
+					if permutation.f < found_node.borrow().f {
+						let mut f = (**found_node).borrow_mut();
+
+						f.deleted = true;
+
+						needs_insert = true;
+						inserted += 1;		
+					}
 				} else {
-					let reference = Rc::new(permutation); 
-					self.nodes.insert(Rc::clone(&reference.clone()));
-					self.open_set.push(reference);
+					needs_insert = true;
+				}
+				if (needs_insert) {
+					inserted += 1;
+					self.open_set.insert(&Rc::new(RefCell::new(permutation)));
 				}
 			}
 
-			self.closed_set.push(Rc::clone(current));
+			self.closed_set.insert(current.board.clone(), Rc::clone(current_ref));
+
+			// println!("Inserted: {}", inserted);
 
 			i += 1;
 		}
 
-		println!("Did not find. Open: {} Total: {}", self.open_set.len(), self.nodes.len());
+		println!("Summary: Open: {} Closed: {} Total: {}", self.open_set.len(), self.closed_set.len(), self.closed_set.len() + self.open_set.len());
 	}
 }

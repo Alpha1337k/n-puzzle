@@ -13,7 +13,7 @@ pub struct Board {
 impl Board {
 
 	fn create_desired_positions(n: usize) -> Vec<Position> {
-		let mut rval = Vec::with_capacity(n * n);
+		let mut rval = Vec::with_capacity(n * n + 1);
 		let mut idx = 0;
 
 		// dummy
@@ -24,7 +24,7 @@ impl Board {
 
 		let mut visited_places = HashSet::<Position>::new();
 
-		let mut directions: [(i32, i32); 4] = [
+		let directions: [(i32, i32); 4] = [
 			(1, 0),
 			(0, 1),
 			(-1, 0),
@@ -57,9 +57,7 @@ impl Board {
 			idx += 1;
 		}
 
-		dbg!(&rval);
-
-		rval.swap(0, (n * n));
+		rval.swap(0, n * n);
 		rval.pop();
 
 		rval
@@ -86,19 +84,17 @@ impl Board {
 			desired_positions: Box::new(Self::create_desired_positions(n))
 		};
 
-		dbg!(&board.desired_positions);
-
 		while i < lines.len() {
 			let splitted: Vec<&str> = lines[i].split('#').collect();
 
-			if (splitted.first().is_none()) {
+			if splitted.first().is_none() {
 				i += 1;
 				continue;
 			}
 
 			let no_comments = splitted.first().unwrap();
 
-			if (no_comments.len() == 0) {
+			if no_comments.len() == 0 {
 				break;
 			}
 
@@ -136,9 +132,13 @@ impl Board {
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		for i in 0..self.data.len() {
-			write!(f, "{} ", self.data[i]).unwrap();
+			if self.data[i] != 0 {
+				write!(f, "{:2} ", self.data[i]).unwrap();
+			} else {
+				write!(f, " - ").unwrap();
+			}
 
-			if (i % self.n == self.n - 1 && i != self.data.len() - 1) {
+			if i % self.n == self.n - 1 && i != self.data.len() - 1 {
 				write!(f, "\n").unwrap();
 			}
 		}
@@ -184,7 +184,7 @@ impl<'a> Iterator for BoardIterator {
 	fn next(&mut self) -> Option<Self::Item> {
 		self.index += 1;
 
-		if self.index >= (self.n * self.n) {
+		if self.index >= (self.n * self.n) + 1 {
 			return None;			
 		}
 

@@ -3,6 +3,7 @@ use board::{Board};
 
 use crate::{heuristics::manhattan_distance, solver::Solver};
 
+mod sorted_set;
 mod heuristics;
 mod solver;
 mod board;
@@ -18,9 +19,9 @@ fn main() -> ExitCode {
 	let path = env::args().nth(1).unwrap();
 	let b = Board::from_path(&path).unwrap();
 
-	manhattan_distance(&b);
-
-	println!("{}", b);
+	// for i in 0..b.desired_positions.len() {
+	// 	println!("{}={}", i, b.desired_positions[i]);
+	// }
 
 	let mut solver = Solver::from_base(&b, &manhattan_distance);
 
