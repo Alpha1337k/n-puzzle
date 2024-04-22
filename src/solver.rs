@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc};
+use std::{borrow::{BorrowMut}, cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc, time::SystemTime};
 
 use num_format::{Locale, ToFormattedString};
 
@@ -10,12 +10,12 @@ pub struct Node {
 	pub h: usize,
 	pub g: usize,
 	pub f: usize,
-	// pub parent: Option<Rc<Node>>,
+	pub parent: Option<Rc<RefCell<Node>>>,
 	pub deleted: bool
 }
 
 impl Node {
-	pub fn get_permutations(&self, heuristic: &'static dyn Fn(&Board) -> usize) -> Vec<Node> {
+	pub fn get_permutations(&self, heuristic: &'static dyn Fn(&Board) -> usize, parent: &Rc<RefCell<Node>>) -> Vec<Node> {
 		let empty_idx = self.board.data.iter().position(|v| v == &0).unwrap();
 
 		let empty_pos = Position::from_u64(empty_idx, self.board.n);
@@ -49,7 +49,7 @@ impl Node {
 				h: score,
 				g: self.g + 1,
 				f: score + self.g + 1,
-				// parent: None,
+				parent: Some(Rc::clone(parent)),
 				deleted: false
 			})
 		}
@@ -95,10 +95,42 @@ pub struct Solver {
 	board: Board,
 	heuristic: &'static dyn Fn(&Board) -> usize,
 	open_set: SortedSet,
-	closed_set: HashMap<Board, Rc<RefCell<Node>>>
+	closed_set: HashMap<Board, Rc<RefCell<Node>>>,
+	timer: SystemTime,
+	eval_count: usize,
+	max_total_states: usize,
 }
 
 impl Solver {
+	fn print_progress(&self, i: usize) {
+		println!("\x1b[1A{esc};[2K;\rindex: {:>12} | open: {:>12} | closed: {:>12}",
+			i.to_formatted_string(&Locale::en),
+			self.open_set.len().to_formatted_string(&Locale::en), 
+			self.closed_set.len().to_formatted_string(&Locale::en),
+			esc = 0x27 as char, 
+		);
+	}
+
+	fn print_result(&self, solution: Rc<RefCell<Node>>) {
+		println!("----- Results -----");
+		println!("States evalled:       {:>12}", self.eval_count.to_formatted_string(&Locale::en));
+		println!("Max states in memory: {:>12}", self.max_total_states.to_formatted_string(&Locale::en));
+		println!("X moves needed:       {:>12}", solution.borrow().g.to_formatted_string(&Locale::en));
+		println!("Visualization: \n");
+		
+		let mut iter = solution;
+		loop {
+			println!("f({}) = h({}) + g({})\n{}\n", &iter.borrow().f, &iter.borrow().h, &iter.borrow().g, &iter.borrow().board);
+
+			let parent = &iter.as_ref().clone();
+
+			match &parent.borrow().parent {
+				Some(v) => iter = v.clone(),
+				None => break
+			};
+		}
+	}
+
 	fn get_inversion_count(&self) -> i32 {
 		let mut count = 0;
 
@@ -136,7 +168,10 @@ impl Solver {
 			board: board.clone(),
 			heuristic,
 			closed_set: HashMap::new(),
-			open_set: SortedSet::new()
+			open_set: SortedSet::new(),
+			timer: SystemTime::now(),
+			eval_count: 0,
+			max_total_states: 0,
 		};
 
 		solver.open_set.insert(&Rc::new(RefCell::new(Node {
@@ -144,7 +179,7 @@ impl Solver {
 			h: 0,
 			g: 0,
 			f: usize::MAX,
-			// parent: None,
+			parent: None,
 			deleted: false
 		})));
 
@@ -159,7 +194,12 @@ impl Solver {
 			return;
 		}
 
+		println!();
+
 		let mut total_inserted = 0;
+		let mut result: Option<Rc<RefCell<Node>>> = None;
+
+		self.timer = SystemTime::now();
 
 		while self.open_set.len() != 0 {
 
@@ -169,52 +209,18 @@ impl Solver {
 			// println!("\n----- Step #{}\t Score: {} = {} + {}:\n{}", i, current.f, current.g, current.h, current.board);
 
 			if (self.heuristic)(&current.board) == 0 {
-				println!("FOUND ({})!\n{}", current.f, current.board);
+				result = Some(current_ref.clone());
 				break;
 			}
 
-			if i != 0 && i % 1_000_000 == 0 {
-				println!("{}, open: {}, closed: {}, sorted: {}", 
-				i.to_formatted_string(&Locale::en),
-				self.open_set.len().to_formatted_string(&Locale::en),
-				self.closed_set.len().to_formatted_string(&Locale::en),
-				self.open_set.sorted_len().to_formatted_string(&Locale::en)
-
-				);
-
-				// let mut s = String::new();
-				// println!("wait for stdin");
-				// stdin().read_line(&mut s);
-
-				// self.closed_set.clear();
-				// self.closed_set.shrink_to(0);
-				// println!("closed died");
-				// stdin().read_line(&mut s);
-
-				// self.open_set.store.clear();
-				// self.open_set.store.shrink_to(0);
-				// println!("store died");
-				// stdin().read_line(&mut s);
-
-				// self.open_set.sorted.clear();
-				// self.open_set.sorted.shrink_to(0);
-				// println!("sorted died");
-				// stdin().read_line(&mut s);
-
-				// println!("{}, open: {}, closed: {}, sorted: {}", 
-				// i.to_formatted_string(&Locale::en),
-				// self.open_set.len().to_formatted_string(&Locale::en),
-				// self.closed_set.len().to_formatted_string(&Locale::en),
-				// self.open_set.sorted_len().to_formatted_string(&Locale::en)
-
-				// );
-
-				// exit(1);
+			if i % 10_000 == 0 && self.timer.elapsed().unwrap().as_millis() >= 500 {
+				self.print_progress(i);
+				self.timer = SystemTime::now();
 			}
 
 			let mut needs_insert = false;
 
-			for permutation in current.get_permutations(self.heuristic) {
+			for permutation in current.get_permutations(self.heuristic, current_ref) {
 				// println!("PERM: {} = {} + {}\n{}", permutation.f, permutation.g, permutation.h, permutation.board);
 
 				// check for duplicates
@@ -249,6 +255,8 @@ impl Solver {
 			i += 1;
 		}
 
+		print!("\x1b[1A\x1b[2K\r");
+		self.print_result(result.unwrap());
 		println!("Summary: Open: {} Closed: {} Total: {}", self.open_set.len(), self.closed_set.len(), self.closed_set.len() + self.open_set.len());
 	}
 }
