@@ -1,13 +1,13 @@
-use std::{collections::HashSet, fmt, fs, hash::{Hash, Hasher}};
+use std::{collections::HashSet, fmt, fs, hash::{Hash, Hasher}, rc::Rc};
 
 use crate::position::Position;
 
 
 #[derive(Debug, Clone)]
 pub struct Board {
-	pub data: Vec<usize>,
+	pub data: Vec<u8>,
 	pub n: usize,
-	pub desired_positions: Box<Vec<Position>>
+	pub desired_positions: Rc<Vec<Position>>
 }
 
 impl Board {
@@ -81,7 +81,7 @@ impl Board {
 		let mut board = Board{
 			data: Vec::with_capacity(n * n),
 			n,
-			desired_positions: Box::new(Self::create_desired_positions(n))
+			desired_positions: Rc::new(Self::create_desired_positions(n))
 		};
 
 		while i < lines.len() {
@@ -98,9 +98,9 @@ impl Board {
 				break;
 			}
 
-			let mut numbers: Vec<usize> = no_comments
+			let mut numbers: Vec<u8> = no_comments
 				.split(' ').filter(|f| f != &"")
-				.map(|v| v.parse::<usize>().unwrap()).collect();
+				.map(|v| v.parse::<u8>().unwrap()).collect();
 
 			if numbers.len() != n {
 				println!("n-puzzle: error: line length mismatch {} vs {}", numbers.len(), n);
@@ -123,7 +123,6 @@ impl Board {
 		};
 
 		board.data.swap(a, b);
-
 
 		return board;
 	}
@@ -165,15 +164,15 @@ impl<'a> IntoIterator for &'a Board {
 }
 
 impl std::ops::Index<&Position> for Board {
-    type Output = usize;
+    type Output = u8;
 
-    fn index(&self, idx: &Position) -> &usize {
+    fn index(&self, idx: &Position) -> &u8 {
 		return &self.data[idx.x + idx.y * self.n];
     }
 }
 
 impl std::ops::IndexMut<&Position> for Board {
-    fn index_mut(&mut self, idx: &Position) -> &mut usize {
+    fn index_mut(&mut self, idx: &Position) -> &mut u8 {
 		return &mut self.data[idx.x + idx.y * self.n];
     }
 }
@@ -205,3 +204,15 @@ impl PartialEq for Board {
 }
 
 impl Eq for Board {}
+
+#[cfg(test)]
+mod tests {
+	// Note this useful idiom: importing names from outer (for mod tests) scope.
+	use super::*;
+
+	#[test]
+	#[should_panic]
+	fn read_unknown() {
+		let _ = Board::from_path("dna.txt");
+	}
+}

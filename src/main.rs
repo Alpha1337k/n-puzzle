@@ -1,15 +1,16 @@
-use std::{env, process::ExitCode};
+use std::{cell::RefCell, env, process::ExitCode, rc::Rc};
 use board::{Board};
 
-use crate::{heuristics::manhattan_distance, solver::Solver};
 
-mod sorted_set;
-mod heuristics;
-mod solver;
-mod board;
-mod position;
+use crate::{heuristics::manhattan_distance, solver::{Node, Solver}};
 
-fn main() -> ExitCode {
+pub mod sorted_set;
+pub mod heuristics;
+pub mod solver;
+pub mod board;
+pub mod position;
+
+pub fn main() -> ExitCode {
     if env::args().len() == 1 {
 		println!("n-puzzle: error: no input file defined.");
 

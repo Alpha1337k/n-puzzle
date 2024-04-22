@@ -1,21 +1,16 @@
-use std::{borrow::BorrowMut, cell::{Ref, RefCell}, cmp::Ordering, collections::{BinaryHeap, HashMap}, hash::{Hash, Hasher}, ops::Deref, rc::Rc};
+use std::{borrow::BorrowMut, cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc};
+
+use num_format::{Locale, ToFormattedString};
 
 use crate::{board::Board, position::Position, sorted_set::SortedSet};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum NodePosition {
-	OPEN,
-	CLOSED
-}
-
 #[derive(Clone, Debug)]
 pub struct Node {
-	pub state: NodePosition,
 	pub board: Board,
 	pub h: usize,
 	pub g: usize,
 	pub f: usize,
-	pub parent: Option<Rc<Node>>,
+	// pub parent: Option<Rc<Node>>,
 	pub deleted: bool
 }
 
@@ -50,12 +45,11 @@ impl Node {
 			let score = heuristic(&new_board);
 
 			permutations.push(Node {
-				state: NodePosition::OPEN,
 				board: new_board,
 				h: score,
 				g: self.g + 1,
 				f: score + self.g + 1,
-				parent: Some(Rc::from(self.clone())),
+				// parent: None,
 				deleted: false
 			})
 		}
@@ -146,12 +140,11 @@ impl Solver {
 		};
 
 		solver.open_set.insert(&Rc::new(RefCell::new(Node {
-			state: NodePosition::OPEN,
 			board: solver.board.clone(),
 			h: 0,
 			g: 0,
 			f: usize::MAX,
-			parent: None,
+			// parent: None,
 			deleted: false
 		})));
 
@@ -166,7 +159,9 @@ impl Solver {
 			return;
 		}
 
-		while self.open_set.len() != 0 && i < 30605822 {
+		let mut total_inserted = 0;
+
+		while self.open_set.len() != 0 {
 
 			let current_ref = &self.open_set.pop();
 			let current = current_ref.borrow();
@@ -178,11 +173,45 @@ impl Solver {
 				break;
 			}
 
-			if (i % 1_000_000 == 0) {
-				println!("{}, open: {}, closed: {}", i, self.open_set.len(), self.closed_set.len());
+			if i != 0 && i % 1_000_000 == 0 {
+				println!("{}, open: {}, closed: {}, sorted: {}", 
+				i.to_formatted_string(&Locale::en),
+				self.open_set.len().to_formatted_string(&Locale::en),
+				self.closed_set.len().to_formatted_string(&Locale::en),
+				self.open_set.sorted_len().to_formatted_string(&Locale::en)
+
+				);
+
+				// let mut s = String::new();
+				// println!("wait for stdin");
+				// stdin().read_line(&mut s);
+
+				// self.closed_set.clear();
+				// self.closed_set.shrink_to(0);
+				// println!("closed died");
+				// stdin().read_line(&mut s);
+
+				// self.open_set.store.clear();
+				// self.open_set.store.shrink_to(0);
+				// println!("store died");
+				// stdin().read_line(&mut s);
+
+				// self.open_set.sorted.clear();
+				// self.open_set.sorted.shrink_to(0);
+				// println!("sorted died");
+				// stdin().read_line(&mut s);
+
+				// println!("{}, open: {}, closed: {}, sorted: {}", 
+				// i.to_formatted_string(&Locale::en),
+				// self.open_set.len().to_formatted_string(&Locale::en),
+				// self.closed_set.len().to_formatted_string(&Locale::en),
+				// self.open_set.sorted_len().to_formatted_string(&Locale::en)
+
+				// );
+
+				// exit(1);
 			}
 
-			let mut inserted = 0;
 			let mut needs_insert = false;
 
 			for permutation in current.get_permutations(self.heuristic) {
@@ -192,26 +221,24 @@ impl Solver {
 				if let Some(found_node) = self.closed_set.remove(&permutation.board) {
 					if permutation.f < found_node.borrow().f {
 						self.open_set.insert(&Rc::clone(&found_node));
-
-						inserted += 1;		
+					} else {
+						self.closed_set.insert(permutation.board.clone(), found_node);
 					}
-					self.closed_set.insert(permutation.board.clone(), found_node);
 
 				} else if let Some(found_node) = self.open_set.find(&permutation.board) {
 					if permutation.f < found_node.borrow().f {
 						let mut f = (**found_node).borrow_mut();
 
 						f.deleted = true;
-
 						needs_insert = true;
-						inserted += 1;		
 					}
 				} else {
 					needs_insert = true;
 				}
-				if (needs_insert) {
-					inserted += 1;
+
+				if needs_insert {
 					self.open_set.insert(&Rc::new(RefCell::new(permutation)));
+					total_inserted += 1;
 				}
 			}
 
