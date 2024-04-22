@@ -1,8 +1,9 @@
-use std::{cell::RefCell, env, process::ExitCode, rc::Rc};
+use std::{env, process::ExitCode};
 use board::{Board};
+use heuristics::{wrong_positions};
 
 
-use crate::{heuristics::manhattan_distance, solver::{Node, Solver}};
+use crate::{solver::{Solver}};
 
 pub mod sorted_set;
 pub mod heuristics;
@@ -24,7 +25,7 @@ pub fn main() -> ExitCode {
 	// 	println!("{}={}", i, b.desired_positions[i]);
 	// }
 
-	let mut solver = Solver::from_base(&b, &manhattan_distance);
+	let mut solver = Solver::from_base(&b, &wrong_positions);
 
 	solver.solve();
 	

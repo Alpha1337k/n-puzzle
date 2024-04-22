@@ -111,24 +111,35 @@ impl Solver {
 		);
 	}
 
+	fn rewind_steps(&self, solution: Rc<RefCell<Node>>) -> Vec<Node> {
+		let mut nodes = Vec::new();
+		let mut iter = solution;
+		loop {
+			nodes.insert(0, iter.borrow().clone());
+
+			let parent = &iter.as_ref().clone();
+
+			match &parent.borrow().parent {
+				Some(v) => iter = v.clone(),
+				None => break 
+			};
+		}
+
+		nodes
+	}
 	fn print_result(&self, solution: Rc<RefCell<Node>>) {
 		println!("----- Results -----");
 		println!("States evalled:       {:>12}", self.eval_count.to_formatted_string(&Locale::en));
 		println!("Max states in memory: {:>12}", self.max_total_states.to_formatted_string(&Locale::en));
 		println!("X moves needed:       {:>12}", solution.borrow().g.to_formatted_string(&Locale::en));
 		println!("Visualization: \n");
+
+		let steps = self.rewind_steps(solution);
 		
-		let mut iter = solution;
-		loop {
-			println!("f({}) = h({}) + g({})\n{}\n", &iter.borrow().f, &iter.borrow().h, &iter.borrow().g, &iter.borrow().board);
-
-			let parent = &iter.as_ref().clone();
-
-			match &parent.borrow().parent {
-				Some(v) => iter = v.clone(),
-				None => break
-			};
+		for step in steps {
+			println!("f({}) = h({}) + g({})\n{}\n", step.f, step.g, step.h, step.board);
 		}
+	
 	}
 
 	fn get_inversion_count(&self) -> i32 {
@@ -187,8 +198,6 @@ impl Solver {
 	}
 
 	pub fn solve(&mut self) {
-		let mut i = 0;
-
 		if !self.is_solvable() {
 			println!("n-puzzle: error: unsolvable");
 			return;
@@ -213,8 +222,8 @@ impl Solver {
 				break;
 			}
 
-			if i % 10_000 == 0 && self.timer.elapsed().unwrap().as_millis() >= 500 {
-				self.print_progress(i);
+			if self.eval_count % 10_000 == 0 && self.timer.elapsed().unwrap().as_millis() >= 500 {
+				self.print_progress(self.eval_count);
 				self.timer = SystemTime::now();
 			}
 
@@ -248,11 +257,13 @@ impl Solver {
 				}
 			}
 
+			self.max_total_states = usize::max(self.max_total_states, self.open_set.len() + self.closed_set.len());
+
 			self.closed_set.insert(current.board.clone(), Rc::clone(current_ref));
 
 			// println!("Inserted: {}", inserted);
 
-			i += 1;
+			self.eval_count += 1;
 		}
 
 		print!("\x1b[1A\x1b[2K\r");
