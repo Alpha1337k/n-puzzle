@@ -1,5 +1,6 @@
 use std::{borrow::{BorrowMut}, cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc, time::SystemTime};
 
+use anyhow::{Error, Ok, Result};
 use num_format::{Locale, ToFormattedString};
 
 use crate::{board::Board, position::Position, sorted_set::SortedSet};
@@ -197,10 +198,9 @@ impl Solver {
 		return solver;
 	}
 
-	pub fn solve(&mut self) {
+	pub fn solve(&mut self) -> Result<()> {
 		if !self.is_solvable() {
-			println!("n-puzzle: error: unsolvable");
-			return;
+			return Err(Error::msg("n-puzzle: error: unsolvable"));
 		}
 
 		println!();
@@ -268,6 +268,7 @@ impl Solver {
 
 		print!("\x1b[1A\x1b[2K\r");
 		self.print_result(result.unwrap());
-		println!("Summary: Open: {} Closed: {} Total: {}", self.open_set.len(), self.closed_set.len(), self.closed_set.len() + self.open_set.len());
+	
+		Ok(())
 	}
 }

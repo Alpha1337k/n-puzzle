@@ -1,6 +1,6 @@
 use std::{process::ExitCode};
 use board::{Board};
-use heuristics::{euclidean_distance, manhattan_distance, roundtrip_manhattan_distance};
+use heuristics::{euclidean_distance, manhattan_distance, roundtrip_manhattan_distance, wrong_positions};
 
 
 use crate::{solver::{Solver}};
@@ -10,6 +10,7 @@ pub mod heuristics;
 pub mod solver;
 pub mod board;
 pub mod position;
+use anyhow::{Context, Result};
 
 use clap::Parser;
 
@@ -29,6 +30,10 @@ struct Args {
     #[arg(short, long)]
     roundtrip: bool,
 
+    /// Use roundtrip as heuristic.
+    #[arg(short, long)]
+    wrong_positions: bool,
+
 	// Input file.
 	#[arg(value_name = "FILE")]
 	path: String
@@ -41,16 +46,18 @@ fn get_heuristic_func(args: &Args) -> &'static dyn Fn(&Board) -> usize {
 		return &euclidean_distance;
 	} else if args.roundtrip {
 		return &roundtrip_manhattan_distance;
+	} else if args.wrong_positions {
+		return &wrong_positions;
 	} else {
 		return &manhattan_distance;
 	}
 }
 
-fn main() -> ExitCode {
+fn main() -> anyhow::Result<ExitCode> {
 	let args = Args::parse();
 
 	// let path = env::args().nth(1).unwrap();
-	let b = Board::from_path(&args.path).unwrap();
+	let b = Board::from_path(&args.path).context("Failed to load board.")?;
 	let heuristic = get_heuristic_func(&args);
 	// for i in 0..b.desired_positions.len() {
 	// 	println!("{}={}", i, b.desired_positions[i]);
@@ -58,7 +65,7 @@ fn main() -> ExitCode {
 
 	let mut solver = Solver::from_base(&b, heuristic);
 
-	solver.solve();
+	solver.solve()?;
 	
-	ExitCode::from(0)
+	Ok(ExitCode::from(0))
 }

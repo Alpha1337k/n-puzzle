@@ -1,5 +1,7 @@
 use std::{collections::HashSet, fmt, fs, hash::{Hash, Hasher}, rc::Rc};
 
+use anyhow::{Error, Result};
+
 use crate::position::Position;
 
 
@@ -63,18 +65,21 @@ impl Board {
 		rval
 	}
 	
-	pub fn from_path(path: &str) -> Result<Board, ()> {
-		let binding = fs::read_to_string(path)
-			.expect("n-puzzle: error: could not open file.");
+	pub fn from_path(path: &str) -> Result<Board> {
+		let binding = fs::read_to_string(path)?;
 		let lines: Vec<&str> = binding.split('\n').collect();
 
 		let mut i = 0;
 
-		while lines[i].starts_with('#') {
+		while i < lines.len() && lines[i].starts_with('#') {
 			i += 1;
 		}
 
-		let n = lines[i].parse::<usize>().expect("n-puzzle: error: could not parse size");
+		if (i == lines.len()) {
+			return Err(Error::msg("Could not find size."));
+		}
+
+		let n = lines[i].parse::<usize>()?;
 
 		i += 1;
 
@@ -103,16 +108,20 @@ impl Board {
 				.map(|v| v.parse::<u8>().unwrap()).collect();
 
 			if numbers.len() != n {
-				println!("n-puzzle: error: line length mismatch {} vs {}", numbers.len(), n);
 
-				return Err(())
+				return Err(Error::msg(format!("n-puzzle: error: line length mismatch {} vs {}", numbers.len(), n)))
 			}
 			board.data.append(&mut numbers);
 
 			i += 1;
 		}
 
-		Ok(board)
+		if (n * n != board.data.len()) {
+			Err(Error::msg("InvalidSize"))
+		} else {
+			Ok(board)
+		}
+
 	}
 
 	pub fn with_swap(board: &Board, a: usize, b: usize) -> Board {
