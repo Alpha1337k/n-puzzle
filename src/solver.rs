@@ -1,4 +1,4 @@
-use std::{borrow::{BorrowMut}, cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc, time::SystemTime};
+use std::{cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc, time::SystemTime};
 
 use anyhow::{Error, Ok, Result};
 use num_format::{Locale, ToFormattedString};
@@ -205,7 +205,6 @@ impl Solver {
 
 		println!();
 
-		let mut total_inserted = 0;
 		let mut result: Option<Rc<RefCell<Node>>> = None;
 
 		self.timer = SystemTime::now();
@@ -253,15 +252,12 @@ impl Solver {
 
 				if needs_insert {
 					self.open_set.insert(&Rc::new(RefCell::new(permutation)));
-					total_inserted += 1;
 				}
 			}
 
 			self.max_total_states = usize::max(self.max_total_states, self.open_set.len() + self.closed_set.len());
 
 			self.closed_set.insert(current.board.clone(), Rc::clone(current_ref));
-
-			// println!("Inserted: {}", inserted);
 
 			self.eval_count += 1;
 		}

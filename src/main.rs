@@ -10,7 +10,7 @@ pub mod heuristics;
 pub mod solver;
 pub mod board;
 pub mod position;
-use anyhow::{Context, Result};
+use anyhow::{Context};
 
 use clap::Parser;
 

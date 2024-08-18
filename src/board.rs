@@ -75,7 +75,7 @@ impl Board {
 			i += 1;
 		}
 
-		if (i == lines.len()) {
+		if i == lines.len() {
 			return Err(Error::msg("Could not find size."));
 		}
 
@@ -116,7 +116,7 @@ impl Board {
 			i += 1;
 		}
 
-		if (n * n != board.data.len()) {
+		if n * n != board.data.len() {
 			Err(Error::msg("InvalidSize"))
 		} else {
 			Ok(board)
