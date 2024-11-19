@@ -296,7 +296,11 @@ impl Solver {
 			self.eval_count += 1;
 		}
 
+		
 		print!("\x1b[1A\x1b[2K\r");
+		if result.is_none() {
+			return Err(Error::msg("No solution found"));
+		}
 		self.print_result(result.unwrap());
 	
 		Ok(())
