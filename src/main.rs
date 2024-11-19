@@ -1,6 +1,6 @@
 use std::{process::ExitCode};
 use board::{Board};
-use heuristics::{euclidean_distance, manhattan_distance, roundtrip_manhattan_distance, wrong_positions};
+use heuristics::{euclidean_distance, manhattan_distance, roundtrip_manhattan_distance, scaling_manhattan_distance, wrong_positions};
 
 
 use crate::{solver::{Solver}};
@@ -30,6 +30,9 @@ struct Args {
     #[arg(short, long)]
     roundtrip: bool,
 
+    #[arg(short, long)]
+    scaling_manhattan: bool,
+
     /// Use roundtrip as heuristic.
     #[arg(short, long)]
     wrong_positions: bool,
@@ -48,6 +51,8 @@ fn get_heuristic_func(args: &Args) -> &'static dyn Fn(&Board) -> usize {
 		return &roundtrip_manhattan_distance;
 	} else if args.wrong_positions {
 		return &wrong_positions;
+	} else if args.scaling_manhattan {
+		return &scaling_manhattan_distance;
 	} else {
 		return &manhattan_distance;
 	}

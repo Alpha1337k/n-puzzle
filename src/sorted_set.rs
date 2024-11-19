@@ -43,8 +43,8 @@ impl SortedSet {
 		self.deleted.insert(id);
 	}
 
-	pub fn find(&mut self, board: &Board) -> Option<&mut WrappedNode> {
-		self.store.get_mut(&board)
+	pub fn find(&mut self, board: &Board) -> Option<&WrappedNode> {
+		self.store.get(&board)
 	}
 
 	pub fn len(&self) -> usize {

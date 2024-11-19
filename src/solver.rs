@@ -232,25 +232,22 @@ impl Solver {
 				self.timer = SystemTime::now();
 			}
 
-			if self.eval_count == 100_000 && false {
+			if self.eval_count == 1_000_000_000 {
 				println!("CAUGHT\n");
 				self.print_progress(self.eval_count);
 
 				io::stdin().read(&mut [0u8]).unwrap();
-				self.closed_set.clear();
-
+				self.open_set.clear_1();
 				println!("S2\n");
 				self.print_progress(self.eval_count);
 
 				io::stdin().read(&mut [0u8]).unwrap();
-				self.open_set.clear_1();
-
+				self.closed_set.clear();
 				println!("S3\n");
 				self.print_progress(self.eval_count);
 
 				io::stdin().read(&mut [0u8]).unwrap();
 				self.open_set.clear_2();
-
 				println!("S4\n");
 				self.print_progress(self.eval_count);
 
@@ -263,14 +260,12 @@ impl Solver {
 			let mut needs_remove_id: Option<usize> = None;
 
 			for permutation in current.get_permutations(self.heuristic, current) {
-				// println!("PERM: {} = {} + {}\n{}", permutation.f, permutation.g, permutation.h, permutation.board);
-
 				// check for duplicates
 				if self.closed_set.contains_key(&permutation.board) {
 					match self.closed_set.get(&permutation.board) {
 						Some(found_node) => {
 							if permutation.f < found_node.f {
-								self.open_set.insert(&Rc::clone(&found_node));
+								needs_insert = true;
 								self.closed_set.remove(&permutation.board);
 							}
 						},

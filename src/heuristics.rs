@@ -51,6 +51,34 @@ pub fn roundtrip_manhattan_distance(board: &Board) -> usize {
 	return total_offset;
 }
 
+pub fn scaling_manhattan_distance(board: &Board) -> usize {
+	let mut total_offset = 0.0;
+	
+	for pos in board {
+		if board[&pos] == 0 {
+			continue;
+		}
+
+		let desired = board.desired_positions[board[&pos] as usize];
+
+		let mut distance: f64 = (
+			(usize::abs_diff(pos.x, desired.x)) as f64 + 
+			(usize::abs_diff(pos.y, desired.y)) as f64
+		) as f64
+			;
+
+		if distance != 0.0 {
+			distance = distance.powf(1.5);
+		}
+
+		// println!("Position: {} Value:{} Goal:{} = {}dist.", pos, board[&pos], board.desired_positions[board[&pos]], distance);
+
+		total_offset += distance;
+	}
+
+	return total_offset as usize;
+}
+
 pub fn euclidean_distance(board: &Board) -> usize {
 	let mut total_offset = 0.0;
 	
