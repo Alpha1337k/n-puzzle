@@ -5,7 +5,7 @@ cargo build --release
 for file in $(ls ./examples/invalid/*);
 do
 	printf "%-40s " $file
-	RESULT=$(./target/debug/n-puzzle $command $file > /dev/null 2> /dev/null)
+	RESULT=$(./target/release/n-puzzle $command $file > /dev/null 2> /dev/null)
 	if [ $? -eq 1 ]
 	then
 		echo "\t[OK]"
@@ -17,7 +17,7 @@ done
 for file in $(ls ./examples/unsolvable/*);
 do
 	printf "%-40s " $file
-	RESULT=$(./target/debug/n-puzzle $command $file > /dev/null 2> /dev/null)
+	RESULT=$(./target/release/n-puzzle $command $file > /dev/null 2> /dev/null)
 	if [ $? -eq 1 ]
 	then
 		echo "\t[OK]"
@@ -41,7 +41,7 @@ do
 		fi
 
 		printf "%s | %-40s " $command $file
-		RESULT=$(./target/debug/n-puzzle $command $file > /dev/null 2> /dev/null)
+		RESULT=$(./target/release/n-puzzle $command $file > /dev/null 2> /dev/null)
 		if [ $? -eq 0 ]
 		then
 			echo "\t[OK]"
