@@ -1,6 +1,6 @@
 COMMANDS=('-r' '-m' '-e')
 
-cargo build
+cargo build --release
 
 for file in $(ls ./examples/invalid/*);
 do

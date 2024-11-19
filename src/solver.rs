@@ -1,4 +1,4 @@
-use std::{cell::RefCell, cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, rc::Rc, time::SystemTime};
+use std::{cmp::Ordering, collections::HashMap, hash::{Hash, Hasher}, io::{self, Read}, process::exit, rc::Rc, sync::atomic::{AtomicUsize, Ordering as AOrdering}, time::{SystemTime}};
 
 use anyhow::{Error, Ok, Result};
 use num_format::{Locale, ToFormattedString};
@@ -8,15 +8,22 @@ use crate::{board::Board, position::Position, sorted_set::SortedSet};
 #[derive(Clone, Debug)]
 pub struct Node {
 	pub board: Board,
+	pub id: usize,
 	pub h: usize,
 	pub g: usize,
 	pub f: usize,
-	pub parent: Option<Rc<RefCell<Node>>>,
-	pub deleted: bool
+	pub parent: Option<Rc<Node>>,
+}
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+
+pub fn next_id() -> usize {
+    COUNTER.fetch_add(1, AOrdering::SeqCst)
 }
 
 impl Node {
-	pub fn get_permutations(&self, heuristic: &'static dyn Fn(&Board) -> usize, parent: &Rc<RefCell<Node>>) -> Vec<Node> {
+	pub fn get_permutations(&self, heuristic: &'static dyn Fn(&Board) -> usize, parent: &Rc<Node>) -> Vec<Node> {
 		let empty_idx = self.board.data.iter().position(|v| v == &0).unwrap();
 
 		let empty_pos = Position::from_u64(empty_idx, self.board.n);
@@ -46,12 +53,12 @@ impl Node {
 			let score = heuristic(&new_board);
 
 			permutations.push(Node {
+				id: next_id(),
 				board: new_board,
 				h: score,
 				g: self.g + 1,
 				f: score + self.g + 1,
 				parent: Some(Rc::clone(parent)),
-				deleted: false
 			})
 		}
 
@@ -96,7 +103,7 @@ pub struct Solver {
 	board: Board,
 	heuristic: &'static dyn Fn(&Board) -> usize,
 	open_set: SortedSet,
-	closed_set: HashMap<Board, Rc<RefCell<Node>>>,
+	closed_set: HashMap<Board, Rc<Node>>,
 	timer: SystemTime,
 	eval_count: usize,
 	max_total_states: usize,
@@ -104,23 +111,25 @@ pub struct Solver {
 
 impl Solver {
 	fn print_progress(&self, i: usize) {
-		println!("\x1b[1A{esc};[2K;\rindex: {:>12} | open: {:>12} | closed: {:>12}",
+		println!("\x1b[1A{esc};[2K;\rindex: {:>12} | open: {:>12} | open_sorted: {:>12} | open_deleted: {:>12} | closed: {:>12}",
 			i.to_formatted_string(&Locale::en),
-			self.open_set.len().to_formatted_string(&Locale::en), 
+			self.open_set.len().to_formatted_string(&Locale::en),
+			self.open_set.sorted_len().to_formatted_string(&Locale::en),
+			self.open_set.deleted_len().to_formatted_string(&Locale::en),
 			self.closed_set.len().to_formatted_string(&Locale::en),
 			esc = 0x27 as char, 
 		);
 	}
 
-	fn rewind_steps(&self, solution: Rc<RefCell<Node>>) -> Vec<Node> {
+	fn rewind_steps(&self, solution: Rc<Node>) -> Vec<Rc<Node>> {
 		let mut nodes = Vec::new();
 		let mut iter = solution;
 		loop {
-			nodes.insert(0, iter.borrow().clone());
+			nodes.insert(0, iter.clone());
 
 			let parent = &iter.as_ref().clone();
 
-			match &parent.borrow().parent {
+			match &parent.parent {
 				Some(v) => iter = v.clone(),
 				None => break 
 			};
@@ -128,11 +137,11 @@ impl Solver {
 
 		nodes
 	}
-	fn print_result(&self, solution: Rc<RefCell<Node>>) {
+	fn print_result(&self, solution: Rc<Node>) {
 		println!("----- Results -----");
 		println!("States evalled:       {:>12}", self.eval_count.to_formatted_string(&Locale::en));
 		println!("Max states in memory: {:>12}", self.max_total_states.to_formatted_string(&Locale::en));
-		println!("X moves needed:       {:>12}", solution.borrow().g.to_formatted_string(&Locale::en));
+		println!("X moves needed:       {:>12}", solution.g.to_formatted_string(&Locale::en));
 		println!("Visualization: \n");
 
 		let steps = self.rewind_steps(solution);
@@ -186,14 +195,14 @@ impl Solver {
 			max_total_states: 0,
 		};
 
-		solver.open_set.insert(&Rc::new(RefCell::new(Node {
+		solver.open_set.insert(&Rc::new(Node {
+			id: 1,
 			board: solver.board.clone(),
 			h: 0,
 			g: 0,
 			f: usize::MAX,
 			parent: None,
-			deleted: false
-		})));
+		}));
 
 		return solver;
 	}
@@ -203,21 +212,18 @@ impl Solver {
 			return Err(Error::msg("n-puzzle: error: unsolvable"));
 		}
 
-		println!();
-
-		let mut result: Option<Rc<RefCell<Node>>> = None;
+		let mut result: Option<Rc<Node>> = None;
 
 		self.timer = SystemTime::now();
 
 		while self.open_set.len() != 0 {
 
-			let current_ref = &self.open_set.pop();
-			let current = current_ref.borrow();
+			let current = &self.open_set.pop();
  			
 			// println!("\n----- Step #{}\t Score: {} = {} + {}:\n{}", i, current.f, current.g, current.h, current.board);
 
 			if (self.heuristic)(&current.board) == 0 {
-				result = Some(current_ref.clone());
+				result = Some(current.clone());
 				break;
 			}
 
@@ -226,38 +232,71 @@ impl Solver {
 				self.timer = SystemTime::now();
 			}
 
-			let mut needs_insert = false;
+			if self.eval_count == 100_000 && false {
+				println!("CAUGHT\n");
+				self.print_progress(self.eval_count);
 
-			for permutation in current.get_permutations(self.heuristic, current_ref) {
+				io::stdin().read(&mut [0u8]).unwrap();
+				self.closed_set.clear();
+
+				println!("S2\n");
+				self.print_progress(self.eval_count);
+
+				io::stdin().read(&mut [0u8]).unwrap();
+				self.open_set.clear_1();
+
+				println!("S3\n");
+				self.print_progress(self.eval_count);
+
+				io::stdin().read(&mut [0u8]).unwrap();
+				self.open_set.clear_2();
+
+				println!("S4\n");
+				self.print_progress(self.eval_count);
+
+				io::stdin().read(&mut [0u8]).unwrap();
+
+				exit(1);
+			}
+
+			let mut needs_insert = false;
+			let mut needs_remove_id: Option<usize> = None;
+
+			for permutation in current.get_permutations(self.heuristic, current) {
 				// println!("PERM: {} = {} + {}\n{}", permutation.f, permutation.g, permutation.h, permutation.board);
 
 				// check for duplicates
-				if let Some(found_node) = self.closed_set.remove(&permutation.board) {
-					if permutation.f < found_node.borrow().f {
-						self.open_set.insert(&Rc::clone(&found_node));
-					} else {
-						self.closed_set.insert(permutation.board.clone(), found_node);
-					}
-
+				if self.closed_set.contains_key(&permutation.board) {
+					match self.closed_set.get(&permutation.board) {
+						Some(found_node) => {
+							if permutation.f < found_node.f {
+								self.open_set.insert(&Rc::clone(&found_node));
+								self.closed_set.remove(&permutation.board);
+							}
+						},
+						None => ()
+					};
 				} else if let Some(found_node) = self.open_set.find(&permutation.board) {
-					if permutation.f < found_node.borrow().f {
-						let mut f = (**found_node).borrow_mut();
-
-						f.deleted = true;
+					if permutation.f < found_node.f {
+						needs_remove_id = Some(found_node.id);
 						needs_insert = true;
 					}
 				} else {
 					needs_insert = true;
 				}
 
+				if needs_remove_id.is_some() {
+					self.open_set.remove(needs_remove_id.unwrap());
+				}
+
 				if needs_insert {
-					self.open_set.insert(&Rc::new(RefCell::new(permutation)));
+					self.open_set.insert(&Rc::new(permutation));
 				}
 			}
 
 			self.max_total_states = usize::max(self.max_total_states, self.open_set.len() + self.closed_set.len());
 
-			self.closed_set.insert(current.board.clone(), Rc::clone(current_ref));
+			self.closed_set.insert(current.board.clone(), Rc::clone(current));
 
 			self.eval_count += 1;
 		}
