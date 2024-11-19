@@ -152,13 +152,13 @@ impl Solver {
 	
 	}
 
-	fn get_inversion_count(&self) -> i32 {
+	fn get_inversion_count(board: &Vec<u16>, n: usize) -> i32 {
 		let mut count = 0;
 
-		for i in 0..((self.board.n * self.board.n) - 1) {
-			for j in (i + 1)..(self.board.n * self.board.n) {
-				if self.board.data[i] != 0 && self.board.data[j] != 0 && 
-					self.board.data[i] > self.board.data[j] {
+		for i in 0..((n * n) - 1) {
+			for j in (i + 1)..(n * n) {
+				if board[i] != 0 && board[j] != 0 && 
+					board[i] > board[j] {
 						count += 1;
 					}
 			}
@@ -168,20 +168,23 @@ impl Solver {
 	}
 
 	pub fn is_solvable(&self) -> bool {
-		let inversions = self.get_inversion_count();
+		let board = self.board.to_vec();
 
+		let inversions = Self::get_inversion_count(&board, self.board.n);
+
+		let empty_idx = self.board.data.iter().position(|v| v == &0).unwrap();
+		let pos: Position = Position::from_u64(empty_idx, self.board.n);
+
+		// Odd board
 		if self.board.n & 1 == 1 {
-			return inversions & 1 == 1;
+			return inversions & 1 == 0;
 		} else {
-			let empty_idx = self.board.data.iter().position(|v| v == &0).unwrap();
-
-			let pos = Position::from_u64(empty_idx, self.board.n);
-
-			if pos.x & 1 == 0 {
+			if pos.x & 1 == 1 {
 				return inversions & 1 == 0;
 			}
-			return inversions & 1 == 1;
+			return inversions & 1 == 0;
 		}
+
 	}
 
 	pub fn from_base(board: &Board, heuristic: &'static dyn Fn(&Board) -> usize) -> Solver {

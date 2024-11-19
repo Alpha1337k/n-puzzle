@@ -7,7 +7,7 @@ use crate::position::Position;
 
 #[derive(Debug, Clone)]
 pub struct Board {
-	pub data: Vec<u8>,
+	pub data: Vec<u16>,
 	pub n: usize,
 	pub desired_positions: Rc<Vec<Position>>
 }
@@ -103,9 +103,9 @@ impl Board {
 				break;
 			}
 
-			let mut numbers: Vec<u8> = no_comments
+			let mut numbers: Vec<u16> = no_comments
 				.split(' ').filter(|f| f != &"")
-				.map(|v| v.parse::<u8>().unwrap()).collect();
+				.map(|v| v.parse::<u16>().unwrap()).collect();
 
 			if numbers.len() != n {
 
@@ -134,6 +134,20 @@ impl Board {
 		board.data.swap(a, b);
 
 		return board;
+	}
+
+	pub fn to_vec(&self) -> Vec<u16> {
+		let mut rv = Vec::with_capacity(self.n * self.n);
+
+		for i in 1..self.desired_positions.len() {
+			let pos = self.desired_positions[i];
+			rv.push(self[&pos])
+		}
+
+		rv.push(self[&self.desired_positions[0]]);
+
+		return rv;
+
 	}
 }
 
@@ -173,15 +187,15 @@ impl<'a> IntoIterator for &'a Board {
 }
 
 impl std::ops::Index<&Position> for Board {
-    type Output = u8;
+    type Output = u16;
 
-    fn index(&self, idx: &Position) -> &u8 {
+    fn index(&self, idx: &Position) -> &u16 {
 		return &self.data[idx.x + idx.y * self.n];
     }
 }
 
 impl std::ops::IndexMut<&Position> for Board {
-    fn index_mut(&mut self, idx: &Position) -> &mut u8 {
+    fn index_mut(&mut self, idx: &Position) -> &mut u16 {
 		return &mut self.data[idx.x + idx.y * self.n];
     }
 }

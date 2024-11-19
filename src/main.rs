@@ -37,6 +37,9 @@ struct Args {
     #[arg(short, long)]
     wrong_positions: bool,
 
+	#[arg(short, long)]
+	dry: bool,
+
 	// Input file.
 	#[arg(value_name = "FILE")]
 	path: String
@@ -69,6 +72,10 @@ fn main() -> anyhow::Result<ExitCode> {
 	// }
 
 	let mut solver = Solver::from_base(&b, heuristic);
+
+	if args.dry {
+		return Ok(ExitCode::from(!solver.is_solvable() as u8));
+	}
 
 	solver.solve()?;
 	
